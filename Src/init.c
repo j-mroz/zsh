@@ -36,6 +36,8 @@
 
 #include "version.h"
 
+#include <pthread.h>
+
 /**/
 int noexitct = 0;
 
@@ -48,7 +50,7 @@ char *zunderscore;
 int underscorelen, underscoreused;
 
 /* what level of sourcing we are at */
- 
+
 /**/
 int sourcelevel;
 
@@ -63,12 +65,12 @@ mod_export int SHTTY;
 mod_export FILE *shout;
 
 /* termcap strings */
- 
+
 /**/
 mod_export char *tcstr[TC_COUNT];
 
 /* lengths of each termcap string */
- 
+
 /**/
 mod_export int tclen[TC_COUNT];
 
@@ -656,7 +658,7 @@ init_shout(void)
     if (shout)
 	setvbuf(shout, shoutbuf, _IOFBF, BUFSIZ);
 #endif
-  
+
     gettyinfo(&shttyinfo);	/* get tty state */
 #if defined(__sgi)
     if (shttyinfo.tio.c_cc[VSWTCH] <= 0)	/* hack for irises */
@@ -1320,7 +1322,7 @@ source(char *s)
     struct funcstack fstack;
     enum source_return ret = SOURCE_OK;
 
-    if (!s || 
+    if (!s ||
 	(!(prog = try_source_file((us = unmeta(s)))) &&
 	 (tempfd = movefd(open(us, O_RDONLY | O_NOCTTY))) == -1)) {
 	return SOURCE_NOT_FOUND;
@@ -1620,6 +1622,15 @@ zsh_main(UNUSED(int argc), char **argv)
 #ifdef USE_LOCALE
     setlocale(LC_ALL, "");
 #endif
+
+    /*
+     * Set the name of main thread as soon as possible.
+     * It will be used to filter out threads spawned as a result of injected
+     * modules like antyvirus. ZSH is not thread safe and there are cases
+     * when thread created by antyvirus for whatever stupid reason crash
+     * the zsh. Protect zsh from that bulshit.
+     */
+    pthread_setname_np("zsh.main");
 
     init_jobs(argv, environ);
 

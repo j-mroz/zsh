@@ -30,6 +30,8 @@
 #include "zsh.mdh"
 #include "utils.pro"
 
+#include <pthread.h>
+
 /* name of script being sourced */
 
 /**/
@@ -1116,7 +1118,7 @@ finddir_scan(HashNode hn, UNUSED(int flags))
 
 /*
  * See if a path has a named directory as its prefix.
- * If passed a NULL argument, it will invalidate any 
+ * If passed a NULL argument, it will invalidate any
  * cached information.
  *
  * s here is metafied.
@@ -1861,6 +1863,16 @@ adjustcolumns(int signalled)
     return (zterm_columns != oldcolumns);
 }
 
+static inline bool ismainthread()
+{
+    const char *main_thread_name = "zsh.main";
+    const int thread_name_len = 10;
+    char thread_name[thread_name_len];
+
+    pthread_getname_np(pthread_self(), thread_name, thread_name_len);
+    return (strncmp(thread_name, main_thread_name, thread_name_len) == 0);
+}
+
 /* check the size of the window and adjust if necessary. *
  * The value of from:					 *
  *   0: called from update_job or setupvals		 *
@@ -1878,6 +1890,13 @@ adjustwinsize(int from)
     int ttycols = shttyinfo.winsize.ws_col;
 #endif
     int resetzle = 0;
+
+    /*
+     * If not a zsh main thread just return.
+     */
+    if (!ismainthread()) {
+        return;
+    }
 
     if (getwinsz || from == 1) {
 #ifdef TIOCGWINSZ
@@ -4043,7 +4062,7 @@ makebangspecial(int yesno)
     /* Name and call signature for congruence with makecommaspecial(),
      * but in this case when yesno is nonzero we defer to the state
      * saved by inittyptab().
-     */ 
+     */
     if (yesno == 0) {
 	typtab[bangchar] &= ~ISPECIAL;
     } else if (typtab_flags & ZTF_BANGCHAR) {
